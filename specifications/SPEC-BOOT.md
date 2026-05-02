@@ -102,6 +102,8 @@ This document specifies:
 - The `.gitignore` rules protecting secrets, build artefacts, and local overrides.
 - The `go.mod` module path and Go version constraint.
 
+HTTP server construction uses Go's standard library (`net/http`) directly. No internal HTTP wrapper package is introduced.
+
 ### 1.2 Definitions
 
 | Term | Definition |
@@ -174,7 +176,6 @@ Story 01 establishes the directory structure. No inter-package imports exist yet
 graph LR
     cmd["cmd/cooksense-server"]
     config["internal/config"]
-    httpx["internal/httpx"]
     auth["internal/auth"]
     db["internal/db"]
     domain["internal/domain"]
@@ -185,7 +186,6 @@ graph LR
     seed["internal/seed"]
 
     cmd --> config
-    cmd --> httpx
     cmd --> auth
     cmd --> db
     cmd --> recipes
@@ -213,7 +213,7 @@ The dependency flow **shall** be strictly:
 
 - `internal/domain` → **no** internal imports (pure business types and interfaces, zero external deps).
 - `internal/config` → stdlib only.
-- `internal/db`, `internal/httpx`, `internal/auth` → `internal/domain` only (plus stdlib; third-party adapters arrive in later stories).
+- `internal/db`, `internal/auth` → `internal/domain` only (plus stdlib; third-party adapters arrive in later stories).
 - `internal/recipes`, `internal/reactions`, `internal/lessons`, `internal/users`, `internal/seed` → `internal/domain`, `internal/db` (domain interfaces only; no cross-feature imports).
 - `cmd/cooksense-server` → all `internal/` packages (wiring point only).
 
@@ -224,7 +224,7 @@ The dependency flow **shall** be strictly:
 ```
 ┌──────────────────────────────────────────────┐
 │  Presentation / Entry Points                 │
-│  cmd/cooksense-server, internal/httpx        │
+│  cmd/cooksense-server (uses net/http)        │
 ├──────────────────────────────────────────────┤
 │  Service / Use Cases                         │
 │  internal/recipes, /reactions, /lessons,     │
@@ -261,21 +261,9 @@ The system **shall** provide a file `internal/config/doc.go` with:
 
 ---
 
-### 5.2 `internal/httpx` — HTTP server primitives
+### 5.2 `internal/auth` — Firebase authentication
 
-#### SPEC-BOOT-003: `internal/httpx` package declaration
-
-The system **shall** provide a file `internal/httpx/doc.go` with:
-
-- A package-level comment: `// Package httpx provides HTTP server construction, middleware, and error-response helpers for cooksense-server.`
-- Only the `package httpx` declaration.
-- No imports. No exported symbols.
-
----
-
-### 5.3 `internal/auth` — Firebase authentication
-
-#### SPEC-BOOT-004: `internal/auth` package declaration
+#### SPEC-BOOT-003: `internal/auth` package declaration
 
 The system **shall** provide a file `internal/auth/doc.go` with:
 
@@ -285,9 +273,9 @@ The system **shall** provide a file `internal/auth/doc.go` with:
 
 ---
 
-### 5.4 `internal/db` — Database connection pool
+### 5.3 `internal/db` — Database connection pool
 
-#### SPEC-BOOT-005: `internal/db` package declaration
+#### SPEC-BOOT-004: `internal/db` package declaration
 
 The system **shall** provide a file `internal/db/doc.go` with:
 
@@ -297,9 +285,9 @@ The system **shall** provide a file `internal/db/doc.go` with:
 
 ---
 
-### 5.5 `internal/domain` — Business types and interfaces
+### 5.4 `internal/domain` — Business types and interfaces
 
-#### SPEC-BOOT-006: `internal/domain` package declaration
+#### SPEC-BOOT-005: `internal/domain` package declaration
 
 The system **shall** provide a file `internal/domain/doc.go` with:
 
@@ -307,15 +295,15 @@ The system **shall** provide a file `internal/domain/doc.go` with:
 - Only the `package domain` declaration.
 - No imports. No exported symbols.
 
-#### SPEC-BOOT-007: `internal/domain` zero-import rule
+#### SPEC-BOOT-006: `internal/domain` zero-import rule
 
 `internal/domain` **shall not** import any other `internal/` package — now or in future stories. Violations are rejected at code review.
 
 ---
 
-### 5.6 `internal/recipes` — Recipe feature
+### 5.5 `internal/recipes` — Recipe feature
 
-#### SPEC-BOOT-008: `internal/recipes` package declaration
+#### SPEC-BOOT-007: `internal/recipes` package declaration
 
 The system **shall** provide a file `internal/recipes/doc.go` with:
 
@@ -325,9 +313,9 @@ The system **shall** provide a file `internal/recipes/doc.go` with:
 
 ---
 
-### 5.7 `internal/reactions` — User reactions
+### 5.6 `internal/reactions` — User reactions
 
-#### SPEC-BOOT-009: `internal/reactions` package declaration
+#### SPEC-BOOT-008: `internal/reactions` package declaration
 
 The system **shall** provide a file `internal/reactions/doc.go` with:
 
@@ -337,9 +325,9 @@ The system **shall** provide a file `internal/reactions/doc.go` with:
 
 ---
 
-### 5.8 `internal/lessons` — Cooking school
+### 5.7 `internal/lessons` — Cooking school
 
-#### SPEC-BOOT-010: `internal/lessons` package declaration
+#### SPEC-BOOT-009: `internal/lessons` package declaration
 
 The system **shall** provide a file `internal/lessons/doc.go` with:
 
@@ -349,9 +337,9 @@ The system **shall** provide a file `internal/lessons/doc.go` with:
 
 ---
 
-### 5.9 `internal/users` — User provisioning
+### 5.8 `internal/users` — User provisioning
 
-#### SPEC-BOOT-011: `internal/users` package declaration
+#### SPEC-BOOT-010: `internal/users` package declaration
 
 The system **shall** provide a file `internal/users/doc.go` with:
 
@@ -361,9 +349,9 @@ The system **shall** provide a file `internal/users/doc.go` with:
 
 ---
 
-### 5.10 `internal/seed` — Seed data loader
+### 5.9 `internal/seed` — Seed data loader
 
-#### SPEC-BOOT-012: `internal/seed` package declaration
+#### SPEC-BOOT-011: `internal/seed` package declaration
 
 The system **shall** provide a file `internal/seed/doc.go` with:
 
@@ -373,9 +361,9 @@ The system **shall** provide a file `internal/seed/doc.go` with:
 
 ---
 
-### 5.11 `cmd/cooksense-server/main.go` — Entry point
+### 5.10 `cmd/cooksense-server/main.go` — Entry point
 
-#### SPEC-BOOT-013: Placeholder `main` function
+#### SPEC-BOOT-012: Placeholder `main` function
 
 The file `cmd/cooksense-server/main.go` **shall** contain a `main` function that:
 
@@ -384,31 +372,31 @@ The file `cmd/cooksense-server/main.go` **shall** contain a `main` function that
 
 It **shall not** import any `internal/` package in Story 01 (real wiring arrives in stories 03/04/07).
 
-#### SPEC-BOOT-014: `main.go` imports
+#### SPEC-BOOT-013: `main.go` imports
 
 `cmd/cooksense-server/main.go` **shall** import only `"fmt"` from the standard library.
 
 ---
 
-### 5.12 `migrations/` — SQL migration files
+### 5.11 `migrations/` — SQL migration files
 
-#### SPEC-BOOT-015: `migrations/` directory
+#### SPEC-BOOT-014: `migrations/` directory
 
 The directory `migrations/` **shall** exist at the project root. Because no SQL files are added in Story 01, the directory **shall** contain a single `.gitkeep` file to ensure it is tracked by Git.
 
 ---
 
-### 5.13 `seed/recipes/` and `seed/lessons/` — Seed YAML directories
+### 5.12 `seed/recipes/` and `seed/lessons/` — Seed YAML directories
 
-#### SPEC-BOOT-016: Seed sub-directories
+#### SPEC-BOOT-015: Seed sub-directories
 
 The directories `seed/recipes/` and `seed/lessons/` **shall** exist at the project root. Because no YAML files are added in Story 01, each directory **shall** contain a single `.gitkeep` file.
 
 ---
 
-### 5.14 `.gitignore`
+### 5.13 `.gitignore`
 
-#### SPEC-BOOT-017: `.gitignore` rules
+#### SPEC-BOOT-016: `.gitignore` rules
 
 The project-root `.gitignore` **shall** contain at minimum the following rules:
 
@@ -427,13 +415,13 @@ The `.gitignore` **should** also include standard Go and OS rules (e.g., `vendor
 
 ---
 
-### 5.15 `go.mod` — Module declaration
+### 5.14 `go.mod` — Module declaration
 
-#### SPEC-BOOT-018: Go version
+#### SPEC-BOOT-017: Go version
 
 The `go.mod` file **shall** declare `go 1.26.2`. Any lower version declaration is a violation of decision D-0001.
 
-#### SPEC-BOOT-019: Module path
+#### SPEC-BOOT-018: Module path
 
 The `go.mod` **shall** preserve the existing module path. It **shall not** be changed in Story 01.
 
@@ -451,8 +439,8 @@ Story 01 introduces **no runtime configuration**. The `internal/config` package 
 
 | Requirement | Command | Expected outcome |
 |-------------|---------|-----------------|
-| **SPEC-BOOT-020** | `go build ./...` | Exits `0`. No errors, no warnings. |
-| **SPEC-BOOT-021** | `go vet ./...` | Exits `0`. Zero issues reported. |
+| **SPEC-BOOT-019** | `go build ./...` | Exits `0`. No errors, no warnings. |
+| **SPEC-BOOT-020** | `go vet ./...` | Exits `0`. Zero issues reported. |
 
 ### 7.2 Go Version
 
@@ -480,9 +468,9 @@ Story 01 is a purely structural story. There is no business logic, no I/O, and n
 
 | Verification | How |
 |-------------|-----|
-| **SPEC-BOOT-022**: All packages compile | `go build ./...` exits `0` |
-| **SPEC-BOOT-023**: `main` prints and exits | `go run ./cmd/cooksense-server` outputs `cooksense-server starting` and exits `0` |
-| **SPEC-BOOT-024**: Vet passes | `go vet ./...` exits `0` |
+| **SPEC-BOOT-021**: All packages compile | `go build ./...` exits `0` |
+| **SPEC-BOOT-022**: `main` prints and exits | `go run ./cmd/cooksense-server` outputs `cooksense-server starting` and exits `0` |
+| **SPEC-BOOT-023**: Vet passes | `go vet ./...` exits `0` |
 
 No `_test.go` files are required in Story 01. Test infrastructure (httptest, testcontainers) is introduced in Story 11.
 
@@ -547,7 +535,7 @@ Use this checklist before starting implementation. Every box must be checked.
 - [x] **Section 2** — Every goal is testable; non-goals prevent scope creep.
 - [x] **Section 3** — Dependencies listed; no new third-party deps in Story 01.
 - [x] **Section 4** — Design pattern (package-per-feature) mapped; dependency graph has no cycles; layered architecture defined.
-- [x] **Section 5** — Every package has SPEC-BOOT-NNN IDs (001–019); every `doc.go` content is fully specified.
+- [x] **Section 5** — Every package has SPEC-BOOT-NNN IDs (001–018); every `doc.go` content is fully specified.
 - [x] **Section 6** — Config deferred to Story 03; noted explicitly.
 - [x] **Section 7** — Build commands and toolchain verified; `go.mod` version pinned.
 - [x] **Section 8** — Test philosophy for structural story clarified; coverage deferred to Story 03+.
@@ -561,23 +549,22 @@ Ordered list of atomic tasks for Story 01. Each task **shall** be implemented, r
 
 | Task | SPEC-IDs | Description | Dependencies |
 |------|----------|-------------|--------------|
-| T-01 | SPEC-BOOT-018, SPEC-BOOT-019 | Update `go.mod` to declare `go 1.26.2` | None |
-| T-02 | SPEC-BOOT-017 | Create or update `.gitignore` with all required patterns | None |
+| T-01 | SPEC-BOOT-017, SPEC-BOOT-018 | Update `go.mod` to declare `go 1.26.2` | None |
+| T-02 | SPEC-BOOT-016 | Create or update `.gitignore` with all required patterns | None |
 | T-03 | SPEC-BOOT-001, SPEC-BOOT-002 | Create `internal/config/doc.go` | T-01 |
-| T-04 | SPEC-BOOT-003 | Create `internal/httpx/doc.go` | T-01 |
-| T-05 | SPEC-BOOT-004 | Create `internal/auth/doc.go` | T-01 |
-| T-06 | SPEC-BOOT-005 | Create `internal/db/doc.go` | T-01 |
-| T-07 | SPEC-BOOT-006, SPEC-BOOT-007 | Create `internal/domain/doc.go` | T-01 |
-| T-08 | SPEC-BOOT-008 | Create `internal/recipes/doc.go` | T-01 |
-| T-09 | SPEC-BOOT-009 | Create `internal/reactions/doc.go` | T-01 |
-| T-10 | SPEC-BOOT-010 | Create `internal/lessons/doc.go` | T-01 |
-| T-11 | SPEC-BOOT-011 | Create `internal/users/doc.go` | T-01 |
-| T-12 | SPEC-BOOT-012 | Create `internal/seed/doc.go` | T-01 |
-| T-13 | SPEC-BOOT-013, SPEC-BOOT-014 | Update `cmd/cooksense-server/main.go` with placeholder `main` | T-01 |
-| T-14 | SPEC-BOOT-015 | Create `migrations/.gitkeep` | None |
-| T-15 | SPEC-BOOT-016 | Create `seed/recipes/.gitkeep` and `seed/lessons/.gitkeep` | None |
-| T-16 | SPEC-BOOT-020, SPEC-BOOT-021 | Verify `go build ./...` and `go vet ./...` pass | T-02..T-15 |
-| T-17 | SPEC-BOOT-022, SPEC-BOOT-023, SPEC-BOOT-024 | Run smoke verification: `go run ./cmd/cooksense-server` outputs `cooksense-server starting` | T-16 |
+| T-04 | SPEC-BOOT-003 | Create `internal/auth/doc.go` | T-01 |
+| T-05 | SPEC-BOOT-004 | Create `internal/db/doc.go` | T-01 |
+| T-06 | SPEC-BOOT-005, SPEC-BOOT-006 | Create `internal/domain/doc.go` | T-01 |
+| T-07 | SPEC-BOOT-007 | Create `internal/recipes/doc.go` | T-01 |
+| T-08 | SPEC-BOOT-008 | Create `internal/reactions/doc.go` | T-01 |
+| T-09 | SPEC-BOOT-009 | Create `internal/lessons/doc.go` | T-01 |
+| T-10 | SPEC-BOOT-010 | Create `internal/users/doc.go` | T-01 |
+| T-11 | SPEC-BOOT-011 | Create `internal/seed/doc.go` | T-01 |
+| T-12 | SPEC-BOOT-012, SPEC-BOOT-013 | Update `cmd/cooksense-server/main.go` with placeholder `main` | T-01 |
+| T-13 | SPEC-BOOT-014 | Create `migrations/.gitkeep` | None |
+| T-14 | SPEC-BOOT-015 | Create `seed/recipes/.gitkeep` and `seed/lessons/.gitkeep` | None |
+| T-15 | SPEC-BOOT-019, SPEC-BOOT-020 | Verify `go build ./...` and `go vet ./...` pass | T-02..T-14 |
+| T-16 | SPEC-BOOT-021, SPEC-BOOT-022, SPEC-BOOT-023 | Run smoke verification: `go run ./cmd/cooksense-server` outputs `cooksense-server starting` | T-15 |
 
 ---
 

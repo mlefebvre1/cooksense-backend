@@ -1,0 +1,17 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/workspaces/cooksense-backend:cached
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/home/vscode/.cache/go-build
+    command: sleep infinity
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  go-mod-cache:
+  go-build-cache:

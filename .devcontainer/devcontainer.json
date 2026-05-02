@@ -1,0 +1,60 @@
+{
+  "name": "cooksense-backend",
+  "dockerComposeFile": [
+    "../docker-compose.yml",
+    "docker-compose.yml"
+  ],
+  "service": "app",
+  "workspaceFolder": "/workspaces/cooksense-backend",
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "forwardPorts": [8080, 5432],
+  "portsAttributes": {
+    "8080": { "label": "cooksense-server", "onAutoForward": "notify" },
+    "5432": { "label": "postgres", "onAutoForward": "silent" }
+  },
+  "containerEnv": {
+    "DATABASE_URL": "postgres://cooksense:cooksense@postgres:5432/cooksense?sslmode=disable",
+    "POSTGRES_USER": "cooksense",
+    "POSTGRES_PASSWORD": "cooksense",
+    "POSTGRES_DB": "cooksense",
+    "POSTGRES_PORT": "5432",
+    "APP_PORT": "8080",
+    "LOG_LEVEL": "info",
+    "LOG_FORMAT": "text"
+  },
+  "postCreateCommand": "go mod download",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-azuretools.vscode-docker",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-pg",
+        "eamodio.gitlens",
+        "editorconfig.editorconfig",
+        "Anthropic.claude-code"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "package",
+        "go.formatTool": "gofmt",
+        "[go]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": { "source.organizeImports": "explicit" }
+        },
+        "gopls": {
+          "ui.semanticTokens": true,
+          "formatting.gofumpt": false
+        }
+      }
+    }
+  },
+  "mounts": [
+      "source=${localEnv:USERPROFILE}${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind"
+    ]
+}
