@@ -66,9 +66,9 @@ You are a **Staff Software Engineer** implementing this specification. Your code
 
 - Be **production-grade** — no TODOs, no placeholder logic, no "exercise left to the reader".
 - Read like a **well-edited technical book** — clear naming, single responsibility, minimal comments (the code *is* the comment).
-- Demonstrate **mastery of Python idioms** — dataclasses, protocols, context managers, generators, `__all__` exports, `__slots__` where beneficial.
-- Treat every public symbol as a **published API** — stable signatures, complete docstrings, defensive input validation.
-- Prefer **composition over inheritance** unless the spec explicitly prescribes a class hierarchy.
+- Demonstrate **mastery of Go idioms** (e.g., explicit error handling, interface satisfaction, concurrency primitives).
+- Treat every public symbol as a **published API** — stable signatures, complete Go Doc comments, defensive input validation.
+- Prefer **composition over embedding** unless the spec explicitly prescribes a specific hierarchy.
 
 ### 0.2 Language Conventions (RFC-2119)
 
@@ -87,14 +87,14 @@ Every source file **shall** comply with:
 
 | Rule | Requirement |
 |------|-------------|
-| **Future annotations** | `from __future__ import annotations` as the first code line (after the copyright header). |
-| **Type hints** | All function signatures, all class attributes, all return types. Use PEP 604 unions (`X \| Y`), not `Optional[X]`. |
-| **Docstrings** | Google style. Every public class, method, and function. Include `Args:`, `Returns:`, `Raises:` sections. |
-| **`__all__`** | Every module **shall** declare `__all__` to make the public API explicit. |
-| **Imports** | stdlib → third-party → first-party, separated by blank lines. Enforced by `ruff` isort rules. |
-| **Logging** | `logging.getLogger(__name__)`. Never `print()`. Never log secrets. |
-| **Constants** | Module-level `UPPER_SNAKE_CASE`. Never magic numbers/strings in function bodies. |
-| **Copyright header** | Every `.py` file **shall** begin with the organization's copyright header. |
+| **Package Declaration** | Every file must start with a valid `package` declaration. |
+| **Strong Typing** | All function signatures, struct fields, and variable declarations must be explicitly typed. Use interfaces for abstraction. |
+| **Go Doc** | Standard Go documentation comments on every exported package, struct, interface, and function. |
+| **Exporting** | Export only what is necessary by using PascalCase for public names. Keep internal logic private (camelCase). |
+| **Imports** | stdlib → external → internal, sorted and grouped. Enforced by `goimports`. |
+| **Logging** | `log/slog` or a structured logging library. Never `fmt.Print*`. Never log secrets. |
+| **Constants** | `PascalCase` for exported, `camelCase` for private. Never magic numbers/strings in function bodies. |
+| **Copyright header** | Every `.go` file **shall** begin with the organization's copyright header. |
 
 ### 0.4 Forbidden Anti-Patterns
 
@@ -102,35 +102,33 @@ The AI **shall not** generate code that contains any of the following:
 
 | Anti-Pattern | Why It's Forbidden |
 |--------------|--------------------|
-| `# type: ignore` without a bracketed error code and comment | Suppresses real bugs. If needed: `# type: ignore[override] — parent uses Any`. |
-| Bare `except:` or `except Exception:` that swallows silently | Hides bugs. Always log or re-raise. |
-| Mutable default arguments (`def f(x=[])`) | Classic Python footgun. Use `None` + internal creation or `field(default_factory=...)`. |
-| `from module import *` | Pollutes namespace, breaks `__all__` contracts. |
-| Global mutable state (module-level dicts/lists modified at runtime) | Unless it's a **registry pattern** explicitly required by the spec. |
+| `//nolint` without a specific linter name and comment | Suppresses real bugs. If needed: `//nolint:errcheck // justified why`. |
+| Ignoring errors (`_ = ...`) or missing `if err != nil` | Hides bugs. Always handle, wrap, or log errors. |
+| Dot imports (`import . "package"`) | Pollutes namespace, makes code harder to follow. |
+| Global mutable state (package-level vars modified at runtime) | Unless it's a **registry pattern** explicitly required by the spec. |
 | Hard-coded secrets, URLs, or file paths | Must come from config, environment, or secret stores. |
-| `time.sleep()` in production code | Use `tenacity` or async waits for retries. |
-| Classes with both `@staticmethod` and instance state | Indicates confused design. Pick one responsibility. |
-| God classes (> 300 lines or > 7 public methods) | Split into collaborators. |
-| Nested functions deeper than 2 levels | Extract to named private functions or classes. |
-| Comments that repeat the code (`# increment x` above `x += 1`) | Comments explain *why*, code explains *what*. |
+| `time.Sleep()` without Context or select | Hard to cancel. Use `context.Context` or `time.Timer` with `select`. |
+| God packages/structs (> 500 lines or > 10 exported methods) | Split into smaller, focused packages or collaborators. |
+| Nested functions deeper than 2 levels (closures) | Extract to named functions or methods. |
+| Comments that repeat the code (`// increment x` above `x++`) | Comments explain *why*, code explains *what*. |
 | Dead code left in "just in case" | Version control exists. Delete it. |
 
 ### 0.5 Design Pattern Selection Guide
 
-When implementing a feature, select from this catalog. **Document which pattern you chose in the module docstring.**
+When implementing a feature, select from this catalog. **Document which pattern you chose in the package documentation.**
 
-| Pattern | When to Use | Python Idiom |
-|---------|-------------|--------------|
-| **Strategy** | Multiple interchangeable algorithms behind a common interface | ABC + concrete subclasses, or `Protocol` |
-| **Factory + Registry** | Creating objects by key without hard-coding imports | `ClassVar[dict]` + `@classmethod` decorator |
-| **Template Method** | Fixed lifecycle with customizable steps | ABC with concrete + abstract methods |
-| **Chain of Responsibility** | Ordered fallback/pipeline processing | Linked handlers with `set_next()` |
-| **Repository** | Decoupling data access from business logic | ABC with `read()` / `write()` |
-| **Adapter** | Wrapping a third-party SDK behind your own interface | Thin wrapper class |
-| **Observer / Event** | Decoupled notification of state changes | Callback lists or `signal` libraries |
-| **Builder** | Complex object construction with many optional params | Fluent API or `@dataclass` + `from_dict()` |
-| **Decorator** | Adding behavior without modifying a class | `functools.wraps` wrapper or class decorator |
-| **Singleton / Borg** | Exactly one instance (e.g., connection pool) | Module-level instance or `__new__` override |
+| Pattern | When to Use | Go Idiom |
+|---------|-------------|----------|
+| **Strategy** | Multiple interchangeable algorithms behind a common interface | Interface + concrete implementations |
+| **Factory + Registry** | Creating objects by key without hard-coding imports | `map[string]Constructor` + `Register()` func |
+| **Template Method** | Fixed lifecycle with customizable steps | Interface + Composition/Embedding |
+| **Chain of Responsibility** | Ordered fallback/pipeline processing | Slice of handlers or linked structs |
+| **Repository** | Decoupling data access from business logic | Interface with `Get()` / `Save()` methods |
+| **Adapter** | Wrapping a third-party SDK behind your own interface | Wrapper struct satisfying internal interface |
+| **Observer / Event** | Decoupled notification of state changes | Channels or slice of listener funcs |
+| **Builder** | Complex object construction with many optional params | Functional Options or Builder struct |
+| **Decorator** | Adding behavior without modifying a class | Middleware (func wrapping) or Embedding |
+| **Singleton** | Exactly one instance (e.g., connection pool) | `sync.Once` or package-level instance |
 
 ---
 
@@ -142,7 +140,7 @@ larger system. Use present tense. Be specific — "processes X for Y" not
 "does stuff".
 -->
 
-**{Project Name}** is a Python library that {brief description of what the project does}. It **shall** operate as {standalone library / CLI tool / pipeline plugin / microservice}.
+**{Project Name}** is a Go package that {brief description of what the project does}. It **shall** operate as {standalone library / CLI tool / pipeline plugin / microservice}.
 
 ### 1.1 Scope
 
@@ -197,29 +195,29 @@ This document specifies the functional and non-functional requirements for:
 
 | Requirement | Specification |
 |-------------|--------------|
-| **Python** | ≥ 3.11, < 3.15 |
+| **Go** | ≥ 1.22 |
 | **OS** | {Linux, macOS — specify if Windows is excluded} |
 
-<!-- FILL: Add any other runtime requirements (Java version for Spark, Node.js, etc.) -->
+<!-- FILL: Add any other runtime requirements (e.g., Node.js, etc.) -->
 
 ### 3.2 Package Dependencies
 
 <!--
 FILL: Every direct dependency, its version constraint, and why it exists.
-The AI uses this to generate correct import statements and pyproject.toml.
+The AI uses this to generate correct import statements and go.mod.
 -->
 
 | Package | Version Constraint | Purpose |
 |---------|-------------------|---------|
 | `{package-1}` | `>={x.y.z}` | {Why this package is needed} |
 | `{package-2}` | `>={x.y.z}, <{a.b.c}` | {Why} |
-| `tenacity` | `>=9.1.4` | Retry with exponential backoff |
+| `avast/retry-go` | `>=4.0.0` | Retry with exponential backoff |
 
 ### 3.3 Optional Dependencies
 
 | Package | Purpose |
 |---------|---------|
-| `python-dotenv` | `.env` file loading (optional) |
+| `joho/godotenv` | `latest` | `.env` file loading (optional) |
 
 ### 3.4 External Systems & APIs
 
@@ -243,12 +241,10 @@ FILL: Map each pattern from Section 0.5 to the module that uses it.
 This table is the architectural blueprint the AI follows.
 -->
 
-| Pattern | Where Applied |
-|---------|--------------|
-| **{Strategy}** | {`base.py` — each provider is a pluggable strategy behind the `Client` interface} |
-| **{Factory + Registry}** | {`base.py` — `ClientFactory` registers and creates `Client`/`Config` pairs by key} |
-| **{Chain of Responsibility}** | {`auth.py` — credential resolution through ordered fallback handlers} |
-| **{Template Method}** | {`pipelines/process.py` — `Pipeline` extends lifecycle: read → transform → write} |
+| **{Strategy}** | {`base.go` — each provider is a pluggable strategy behind the `Client` interface} |
+| **{Factory + Registry}** | {`base.go` — `ClientFactory` registers and creates `Client/Config` pairs by key} |
+| **{Chain of Responsibility}** | {`auth.go` — credential resolution through ordered fallback handlers} |
+| **{Template Method}** | {`pipelines/process.go` — `Pipeline` extends lifecycle: read → transform → write} |
 
 ### 4.2 Module Dependency Graph
 
@@ -260,20 +256,16 @@ The AI uses this to avoid circular dependencies.
 ```mermaid
 graph LR
     subgraph "{project_package}/"
-        base["base.py<br/><i>ABCs + Factory</i>"]
-        auth["auth.py<br/><i>Credential chain</i>"]
-        client["client.py<br/><i>Provider impl</i>"]
-        init["__init__.py<br/><i>Public re-exports</i>"]
-        pipeline["pipelines/process.py<br/><i>Pipeline</i>"]
+        base["base.go<br/><i>Interfaces + Factory</i>"]
+        auth["auth.go<br/><i>Credential chain</i>"]
+        client["client.go<br/><i>Provider impl</i>"]
+        pipeline["pipelines/process.go<br/><i>Pipeline</i>"]
     end
 
-    auth -- "TYPE_CHECKING only" --> base
     client --> base
     client --> auth
     pipeline --> base
-    pipeline -- "side-effect import" --> client
-    init --> base
-    init --> client
+    pipeline --> client
 ```
 
 ### 4.3 Dependency Flow Rules
@@ -282,10 +274,10 @@ The dependency flow **shall** be strictly:
 
 <!-- FILL: Define the import DAG. No cycles allowed. -->
 
-- `base.py` → **no** internal imports
-- `auth.py` → `base.py` (`TYPE_CHECKING` only)
-- `client.py` → `base.py`, `auth.py`
-- `pipelines/*.py` → `base.py`, `client.py` (side-effect import for registration)
+- `base.go` → **no** internal imports
+- `auth.go` → `base.go`
+- `client.go` → `base.go`, `auth.go`
+- `pipelines/*.go` → `base.go`, `client.go` (side-effect import for registration if needed)
 
 ### 4.4 Layered Architecture
 
@@ -298,13 +290,13 @@ Delete this subsection if not applicable.
 block-beta
     columns 1
     block:presentation["Presentation / Entry Points"]
-        p1["CLI, API routes, pipelines registration"]
+        p1["CLI, API handlers, pipelines registration"]
     end
     block:service["Service / Use Cases"]
         s1["Orchestration, transforms, pipelines"]
     end
     block:domain["Domain / Core"]
-        d1["ABCs, value objects, business rules"]
+        d1["Interfaces, value objects, business rules"]
     end
     block:infra["Infrastructure / Adapters"]
         i1["HTTP clients, DB repos, auth chains"]
@@ -317,44 +309,44 @@ block-beta
 
 ---
 
-## 5. Module Specifications
+## 5. Package Specifications
 
 > [!IMPORTANT]
-> **How to write module specs** — For EACH module, create a subsection (5.N) with:
-> 1. `SPEC-{MOD}-NNN` numbered requirements (e.g., `SPEC-BASE-001`).
-> 2. A class/dataclass **field table**: field | type | default | description.
-> 3. A **method table**: method | signature | description.
-> 4. **Error behavior**: what exceptions are raised and when.
-> 5. **Invariants**: what must always be true (e.g., "frozen dataclass").
+> **How to write package specs** — For EACH package, create a subsection (5.N) with:
+> 1. `SPEC-{PKG}-NNN` numbered requirements (e.g., `SPEC-BASE-001`).
+> 2. A **struct field table**: field | type | default | description.
+> 3. An **interface/method table**: method | signature | description.
+> 4. **Error behavior**: what errors are returned and when.
+> 5. **Invariants**: what must always be true (e.g., "thread-safe").
 >
 > This is the section where you invest the most time. The AI produces code that is a 1:1 map of these tables.
 
-### 5.1 `{module_name}` — {Human-Readable Description}
+### 5.1 `{package_name}` — {Human-Readable Description}
 
-#### SPEC-{MOD}-001: `{ClassName}` {dataclass | ABC | class}
+#### SPEC-{PKG}-001: `{StructName}` {struct | interface}
 
-The system **shall** provide a `{ClassName}` {dataclass | abstract base class | class} with the following fields:
+The system **shall** provide a `{StructName}` {struct | interface} with the following fields:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `{field_1}` | `str` | *(required)* | {What this field represents} |
-| `{field_2}` | `int` | `0` | {What this field represents} |
-| `{field_3}` | `list[str] \| None` | `None` | {What this field represents} |
+| `{Field1}` | `string` | *(required)* | {What this field represents} |
+| `{Field2}` | `int` | `0` | {What this field represents} |
+| `{Field3}` | `[]string` | `nil` | {What this field represents} |
 
-<!-- Add as many SPEC-{MOD}-NNN blocks as needed per module. -->
+<!-- Add as many SPEC-{PKG}-NNN blocks as needed per package. -->
 
-#### SPEC-{MOD}-002: `{ClassName}` methods
+#### SPEC-{PKG}-002: `{StructName}` methods
 
 The system **shall** provide the following methods:
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `{method_1}` | `(arg: str) → Result` | {What it does} |
-| `{method_2}` | `(items: list[str]) → list[Result]` | {What it does} |
+| `{Method1}` | `(arg string) (Result, error)` | {What it does} |
+| `{Method2}` | `(items []string) ([]Result, error)` | {What it does} |
 
 Error behavior:
-- `{method_1}` **shall** raise `ValueError` if {condition}.
-- `{method_2}` **shall** raise `KeyError` if {condition}.
+- `{Method1}` **shall** return `ErrInvalidInput` if {condition}.
+- `{Method2}` **shall** return `ErrNotFound` if {condition}.
 
 <!--
 REPEAT subsection 5.N for every module in your project.
@@ -376,7 +368,7 @@ FILL: Define what your config looks like (YAML, TOML, env vars, dataclass).
 Include an example.
 -->
 
-The system **shall** accept configuration via {YAML file | environment variables | `pyproject.toml` | dataclass constructor}:
+The system **shall** accept configuration via {YAML file | environment variables | `go.mod` | struct constructor}:
 
 ```yaml
 # Example configuration structure
@@ -488,31 +480,33 @@ flowchart TD
 
 <!--
 FILL: Enumerate every error category, how it's handled, and the retry policy.
-The AI uses this to generate try/except blocks and fallback logic.
+The AI uses this to generate error checks and fallback logic.
 -->
 
 | Category | Behavior | Retry Policy |
 |----------|----------|--------------|
-| **Transient network failure** | Retry with exponential backoff | Up to `max_retries` times, backoff `min(base × 2^attempt, 30s)` |
+| **Transient network failure** | Retry with exponential backoff | Up to `MaxRetries` times, backoff `min(base × 2^attempt, 30s)` |
 | **Batch processing failure** | Fall back to row-by-row processing | Per-item errors isolated |
-| **Configuration validation** | Raise `ValueError` immediately | No retry |
-| **Authentication failure** | Chain of handlers; return `None` if all fail | Per-handler, no cross-handler retry |
+| **Configuration validation** | Return `ErrInvalidConfig` immediately | No retry |
+| **Authentication failure** | Chain of handlers; return `nil` if all fail | Per-handler, no cross-handler retry |
 
-### 9.2 Exception Hierarchy
+### 9.2 Error Definitions
 
 <!--
-FILL: Define any custom exceptions your project needs.
+FILL: Define any custom errors your project needs.
 -->
 
-```python
-class {ProjectName}Error(Exception):
-    """Base exception for all {project} errors."""
+```go
+var (
+    // ErrBase is the base error for the project
+    ErrBase = errors.New("{project} error")
 
-class ConfigurationError({ProjectName}Error, ValueError):
-    """Raised when configuration validation fails."""
+    // ErrConfiguration is returned when validation fails
+    ErrConfiguration = fmt.Errorf("%w: invalid configuration", ErrBase)
 
-class ProviderError({ProjectName}Error):
-    """Raised when an external provider call fails after all retries."""
+    // ErrProvider is returned when an external provider call fails
+    ErrProvider = fmt.Errorf("%w: provider failure", ErrBase)
+)
 ```
 
 ### 9.3 Retry Specification
@@ -522,8 +516,8 @@ class ProviderError({ProjectName}Error):
 - Transient failures **shall** be retried up to `max_retries` times.
 - Setting `max_retries=0` **shall** disable retries (fire once).
 - Backoff **shall** be exponential: `min(retry_backoff_base × 2^attempt, 30)` seconds.
-- On final exhaustion, the last exception **shall** be re-raised (loud fail).
-- An `ERROR`-level log entry containing `"FATAL"` **shall** be emitted before re-raising.
+- On final exhaustion, the last error **shall** be returned (loud fail).
+- An `ERROR`-level log entry containing `"FATAL"` **shall** be emitted before returning.
 
 ### 9.4 Fallback Strategy
 
@@ -543,10 +537,10 @@ class ProviderError({ProjectName}Error):
 
 | Requirement | Specification |
 |-------------|--------------|
-| **Logger creation** | `logger = logging.getLogger(__name__)` in every module |
-| **Structured context** | Use `extra={...}` for machine-parseable fields |
+| **Logger usage** | Use `slog` or a package-level logger |
+| **Structured context** | Use `slog` attributes or key-value pairs |
 | **Secrets** | **Shall never** appear in log messages at any level |
-| **Level usage** | `DEBUG` = internal tracing; `INFO` = key lifecycle events; `WARNING` = recoverable issues; `ERROR` = failures requiring attention |
+| **Level usage** | `DEBUG` = internal tracing; `INFO` = key lifecycle events; `WARN` = recoverable issues; `ERROR` = failures requiring attention |
 
 ### 10.2 Metrics
 
@@ -608,7 +602,7 @@ For each item that applies, add a SPEC-SEC-NNN row to the table below.
 
   LOGGING & OBSERVABILITY
   □ Secrets shall never appear in log messages at any level.
-  □ `__repr__` shall mask secret fields with "****".
+  □ `String()` or `LogValue()` shall mask secret fields with "****".
   □ Error messages shall not leak stack traces containing secrets.
 
   DEPENDENCY SECURITY
@@ -616,15 +610,15 @@ For each item that applies, add a SPEC-SEC-NNN row to the table below.
   □ Optional dependencies shall fail gracefully, not expose attack surface.
 
   SERIALIZATION BOUNDARIES
-  □ Config objects crossing process boundaries (Spark executors, HTTP, queues)
-    shall strip secrets via `to_serializable_dict()`.
-  □ Pickle / JSON serialization shall never include credential fields.
+  □ Config objects crossing process boundaries (HTTP, queues)
+    shall strip secrets before serialization.
+  □ JSON serialization shall never include credential fields.
 -->
 
 | Requirement | Specification |
 |-------------|--------------|
-| **SPEC-SEC-001** | Fields listed in `_SECRETS` **shall** be excluded from `to_serializable_dict()` so secrets are never shipped across process boundaries |
-| **SPEC-SEC-002** | `__repr__` **shall** mask secret fields with `"****"` (or show `None` if unset) |
+| **SPEC-SEC-001** | Fields tagged with `json:"-"` or sensitive tags **shall** be excluded from serialization so secrets are never shipped across process boundaries |
+| **SPEC-SEC-002** | `String()` or `GoString()` methods **shall** mask secret fields with `"****"` (or show `<nil>` if unset) |
 | **SPEC-SEC-003** | Credentials **shall** be resolved at runtime (not from serialized config) |
 | **SPEC-SEC-004** | {Sensitive data columns shall be dropped from output} |
 | **SPEC-SEC-005** | {OAuth2 endpoints shall use HTTPS and have a 10-second timeout} |
@@ -642,13 +636,13 @@ verify its Factory/Registry patterns are correct.
 
 To add a new {provider}, implementors **shall**:
 
-1. Create a `{Config}` subclass decorated with `@{Factory}.register_config("{key}")`:
-    - Set `provider: ClassVar[str] = "{key}"`.
-    - Add sensitive fields to `_SECRETS`.
-2. Create a `{Client}` subclass decorated with `@{Factory}.register("{key}")`:
-    - Implement `{method_1}(text) → Result`.
-    - Implement `{method_2}(texts) → list[Result]`.
-3. Ensure the module is imported so the decorators execute (side-effect import).
+1. Create a `{Config}` struct and register it via a `RegisterConfig("{key}", constructor)` function:
+    - Set a field or tag for `provider: "{key}"`.
+    - Tag sensitive fields to exclude them from logs/serialization.
+2. Create a `{Client}` implementation that satisfies the required interface:
+    - Implement `{Method1}(ctx, text) (Result, error)`.
+    - Implement `{Method2}(ctx, texts) ([]Result, error)`.
+3. Ensure the implementation is registered (usually via `init()` in the provider's package).
 
 **No changes to existing code shall be required** (Open-Closed Principle).
 
@@ -672,7 +666,6 @@ To add a new {provider}, implementors **shall**:
 | **SPEC-COMPAT-001** | {Legacy config key `{old}` shall be accepted and auto-promoted} |
 | **SPEC-COMPAT-002** | {A `DeprecationWarning` shall be emitted when the legacy key is used} |
 | **SPEC-COMPAT-003** | {`Result` shall be re-exported from `{package}.client` for backward-compatible imports} |
-| **SPEC-COMPAT-004** | {Public classes shall be re-exported from `{package}.__init__`} |
 
 ---
 
@@ -689,21 +682,19 @@ your project-specific test requirements to the table in 15.3.
 
 - Every `SPEC-*` requirement in this document **shall** have at least one corresponding test.
 - Tests **shall** be the executable proof that the specification is satisfied.
-- Test names **shall** read as English sentences: `test_{feature}_when_{condition}_then_{expected}`.
+- Test names **shall** follow the pattern: `Test{Feature}_{Condition}_{Expected}`.
 
 ### 15.2 Test Structure
 
 ```
-tests/
-├── conftest.py                    # Shared fixtures (session-scoped resources, factories)
-├── unit/                          # Fast, isolated, no I/O, no network
-│   ├── test_{module_1}.py         # One test file per source module
-│   ├── test_{module_2}.py
-│   ├── test_{module_3}.py
-│   └── {subpackage}/
-│       └── test_{module_4}.py
-└── integration/                   # Slower tests with real I/O (optional)
-    └── test_{feature}.py
+.
+├── cmd/                           # Main applications
+├── internal/                      # Private code
+│   └── {package}/
+│       ├── {file}.go
+│       └── {file}_test.go         # Unit tests in the same package
+└── tests/                         # Integration and end-to-end tests
+    └── integration_test.go
 ```
 
 ### 15.3 Test Requirements Table
@@ -720,49 +711,47 @@ Use this format:
 | Area | Required Tests |
 |------|---------------|
 | **{Result value object}** | Default construction with required fields only; full construction with all fields; field types are correct |
-| **{Config ABC}** | Subclass inherits defaults; `to_serializable_dict` includes `provider` key; `from_dict` drops unknown keys; `from_dict` preserves known keys; `__repr__` masks `_SECRETS` fields with `"****"`; `__repr__` shows `None` for unset secrets; frozen immutability raises `FrozenInstanceError` |
-| **{Client ABC}** | Cannot instantiate ABC directly (`TypeError`); concrete subclass works; `deidentify()` delegates to `deidentify_batch()` |
-| **{Factory / Registry}** | `create()` returns correct client; unknown provider raises `KeyError` with available list; `create_from_dict()` full roundtrip; missing `provider` key raises `KeyError`; `available()` returns sorted list; duplicate registration logs warning and overwrites |
+| **{Config Interface}** | Implementation satisfies interface; `MarshalJSON` includes `provider` key; `UnmarshalJSON` drops unknown fields; `String()` masks sensitive fields with `"****"`; immutable behavior where applicable |
+| **{Client Interface}** | Concrete implementation works; `Deidentify()` delegates to batch if appropriate; handles `context.Context` cancellation |
+| **{Factory / Registry}** | `New()` returns correct client; unknown provider returns error with available list; `NewFromConfig()` full roundtrip; missing `provider` key returns error; `Available()` returns sorted list; duplicate registration logs warning and overwrites |
 | **{Auth handler 1}** | Skips when precondition not met; resolves value when available; passes to next handler on miss; graceful when optional dependency missing |
 | **{Auth handler 2}** | Skips when precondition not met; resolves from source; handles source unavailability |
-| **{Auth chain wiring}** | Chain has N handlers in correct order; returns `None` when all fail; short-circuits at first success; falls through to last handler |
-| **{Provider Config}** | All defaults correct; custom values override defaults; frozen raises on mutation; `__repr__` masks secrets; `to_serializable_dict` excludes secrets and includes provider; `from_dict` drops unknown keys |
-| **{Provider Client}** | Successful single call; successful batch call; no-results case returns empty; exception propagation after retry exhaustion; retry succeeds after transient failure; `max_retries=0` fires once; error log contains "FATAL" on exhaustion |
-| **{Pipeline registration}** | Key in factory `available()`; factory `create()` returns correct class |
-| **{Pipeline validation}** | Missing required section raises `ValueError`; missing required field raises; empty required list raises; valid config passes without error |
-| **{Pipeline transform}** | No-op on empty data; no-op on `None` data; happy path produces expected outputs |
-| **{Pipeline read/write}** | Skips repos without reader/writer; raises on count mismatch; single output writes to all |
-| **{Metadata builder}** | All expected columns present; one row per entity; primary keys propagated; deterministic IDs; NULL input → 0 rows; empty array → 0 rows |
-| **{Backward compat}** | New key preferred over legacy; legacy auto-promoted with warning; default provider injected |
+| **{Auth chain wiring}** | Chain has N handlers in correct order; returns `nil` when all fail; short-circuits at first success; falls through to last handler |
+| **{Provider Config}** | All defaults correct; custom values override defaults; `String()` masks secrets; `MarshalJSON` excludes secrets |
+| **{Provider Client}** | Successful single call; successful batch call; no-results case returns empty; error propagation after retry exhaustion; retry succeeds after transient failure; `MaxRetries=0` fires once; error log contains "FATAL" on exhaustion |
+| **{Pipeline registration}** | Key in factory `Available()`; factory `New()` returns correct type |
+| **{Pipeline validation}** | Missing required section returns error; missing required field returns error; valid config passes |
+| **{Pipeline transform}** | No-op on empty data; happy path produces expected outputs |
+| **{Pipeline read/write}** | Handles I/O errors; single output writes to all |
+| **{Metadata builder}** | All expected columns present; deterministic IDs; NULL/Empty input handling |
+| **{Backward compat}** | New key preferred over legacy; legacy auto-promoted with warning |
 
-### 15.4 Fixture Standards
+### 15.4 Helper Standards
 
 | Scope | Use Case | Example |
 |-------|----------|---------|
-| `session` | Expensive shared resources (SparkSession, DB connection) | `@pytest.fixture(scope="session")` |
-| `module` | Per-file setup (test database, temp directory) | `@pytest.fixture(scope="module")` |
-| `function` | Per-test isolation (fresh objects, mocks) | `@pytest.fixture` (default) |
+| `TestMain` | Expensive shared resources (DB connection, global setup) | `func TestMain(m *testing.M)` |
+| Package-level | Per-package setup | `setup()` function |
+| Function | Per-test isolation | `t.Cleanup()` for cleanup |
 
-**Factory fixtures** — When tests need objects with varying attributes, use a factory fixture:
+**Factory functions** — When tests need objects with varying attributes, use a helper function:
 
-```python
-@pytest.fixture
-def make_config():
-    """Factory fixture for building test configs with overrides."""
-    def _make(**overrides):
-        defaults = {"url": "https://test.example.com", "api_key": "test-key"}
-        defaults.update(overrides)
-        return MyConfig(**defaults)
-    return _make
+```go
+func newTestConfig(t *testing.T, overrides map[string]any) *MyConfig {
+    t.Helper()
+    cfg := &MyConfig{URL: "https://test.example.com", APIKey: "test-key"}
+    // Apply overrides...
+    return cfg
+}
 ```
 
 ### 15.5 Mocking Policy
 
 | Mock | Don't Mock |
 |------|------------|
-| External HTTP calls (APIs, SDKs) | Your own classes under test |
+| External HTTP calls (APIs, SDKs) | Your own structs under test |
 | File system I/O in unit tests | Pure business logic |
-| Environment variables | Dataclass construction |
+| Environment variables | Struct construction |
 | Time-dependent operations | Collection operations |
 | Third-party SDK constructors | Factory / registry internals |
 
@@ -773,35 +762,37 @@ def make_config():
 
 | Metric | Minimum | Enforced By |
 |--------|---------|-------------|
-| **Unit test line coverage** | **80%** | `coverage report --fail-under 80` |
-| **Branch coverage** | **70%** | `coverage report --fail-under 70` (optional) |
+| **Unit test line coverage** | **80%** | `go test -cover` |
 | **New code coverage** | **90%** | PR review (manual) |
 
 ### 15.7 Test Naming Convention
 
 ```
-test_{what}_when_{condition}_then_{expected_outcome}
+Test{What}_{Condition}_{ExpectedOutcome}
 ```
 
 Examples:
-- `test_create_when_unknown_provider_then_raises_key_error`
-- `test_deidentify_batch_when_transient_failure_then_retries_and_succeeds`
-- `test_repr_when_secret_is_set_then_shows_masked_value`
+- `TestCreate_UnknownProvider_ReturnsError`
+- `TestDeidentifyBatch_TransientFailure_RetriesAndSucceeds`
+- `TestString_SecretIsSet_ShowsMaskedValue`
 
-### 15.8 Property-Based Testing Guidance
+### 15.8 Boundary & Property-Based Testing Guidance
 
-For core value objects and serialization, **consider** `hypothesis`:
+For core value objects and serialization, consider using fuzzing:
 
-```python
-from hypothesis import given, strategies as st
-
-@given(text=st.text(min_size=1))
-def test_deidentify_result_roundtrip(text: str):
-    result = DeidentifyResult(processed_text=text)
-    assert result.processed_text == text
+```go
+func FuzzDeidentifyResultRoundtrip(f *testing.F) {
+    f.Add("some text")
+    f.Fuzz(func(t *testing.T, text string) {
+        result := DeidentifyResult{ProcessedText: text}
+        if result.ProcessedText != text {
+            t.Errorf("roundtrip failed: got %q, want %q", result.ProcessedText, text)
+        }
+    })
+}
 ```
 
-Use for: serialization roundtrips, `from_dict`/`to_dict` symmetry, boundary conditions.
+Use for: serialization roundtrips, symmetry, boundary conditions.
 
 ---
 
@@ -812,169 +803,43 @@ Use for: serialization roundtrips, `from_dict`/`to_dict` symmetry, boundary cond
 placeholders marked with {}.
 -->
 
-### 16.1 Package Manager: `uv`
+### 16.1 Toolchain: `go`
 
 | Setting | Value |
 |---------|-------|
-| **Tool** | [`uv`](https://docs.astral.sh/uv/) |
-| **Build backend** | `uv_build` (PEP 517) |
-| **Virtual environment** | Managed by `uv venv` |
-| **Lock file** | `uv.lock` (committed to version control) |
-| **Sync command** | `uv sync --all-extras` |
+| **Tool** | [`go`](https://go.dev/) |
+| **Dependency Manager** | `go mod` |
+| **Linter** | `golangci-lint` |
+| **Lock file** | `go.sum` |
+| **Sync command** | `go mod tidy` |
 
-### 16.2 `pyproject.toml` — Canonical Layout
+### 16.2 `go.mod` — Module Definition
 
-The `pyproject.toml` **shall** contain all project metadata and tool configuration in a single file. No `setup.py`, no `setup.cfg`, no `requirements.txt`.
+The `go.mod` **shall** define the module path and Go version.
 
-```toml
-# ─────────────────────────────────────────────────────────────────
-# PROJECT METADATA
-# ─────────────────────────────────────────────────────────────────
-[project]
-name = "{Project-Name}"
-version = "{0.1.0}"
-description = "{One-line project description.}"
-authors = [
-    { name = "{Author Name}", email = "{author@example.com}" },
-]
-license = { text = "{Proprietary | MIT | Apache-2.0}" }
-readme = "README.md"
-requires-python = ">=3.11, <3.15"
-dependencies = [
-    # FILL: production dependencies with version constraints
-    # "{package}>={x.y.z}",
-]
+```go
+module {module-path}
 
-# ─────────────────────────────────────────────────────────────────
-# DEPENDENCY GROUPS
-# ─────────────────────────────────────────────────────────────────
-[dependency-groups]
-dev = [
-    "pre-commit",
-    "pytest",
-    "pytest-cov",
-    "coverage",
-    "coverage-badge",
-    "commitizen",
-    "setuptools",
-]
-code-quality = [
-    "ruff",
-    "ty",
-]
-# FILL: Add optional groups as needed:
-# docs = ["mkdocs", "mkdocstrings[python]"]
-# {optional_group} = ["{package}"]
+go 1.22
 
-# ─────────────────────────────────────────────────────────────────
-# PYTEST
-# ─────────────────────────────────────────────────────────────────
-[tool.pytest.ini_options]
-addopts = ["--import-mode=importlib"]
-pythonpath = ["."]
-testpaths = ["tests"]
-
-# ─────────────────────────────────────────────────────────────────
-# UV
-# ─────────────────────────────────────────────────────────────────
-[tool.uv]
-package = true
-default-groups = ["dev", "code-quality"]
-
-# FILL: Add local editable sources if needed:
-# [tool.uv.sources]
-# {internal-pkg} = { path = "../{InternalPkg}", editable = true }
-
-# FILL: Add private index if needed:
-# [[tool.uv.index]]
-# name = "{index-name}"
-# url = "{https://your-private-pypi/simple/}"
-
-# ─────────────────────────────────────────────────────────��───────
-# BUILD SYSTEM
-# ─────────────────────────────────────────────────────────────────
-[build-system]
-requires = ["uv_build>=0.10.7,<0.12.0"]
-build-backend = "uv_build"
-
-[tool.uv.build-backend]
-module-root = ""
-
-# ─────────────────────────────────────────────────────────────────
-# RUFF — Linting & Formatting
-# ─────────────────────────────────────────────────────────────────
-[tool.ruff]
-line-length = 88
-target-version = "py311"
-exclude = [
-    ".eggs",
-    ".git",
-    ".github",
-    ".pytest_cache",
-    ".vscode",
-    "config",
-    "docs",
-    "env",
-]
-
-[tool.ruff.lint]
-select = [
-    "C",    # McCabe complexity
-    "E",    # pycodestyle errors
-    "F",    # pyflakes
-    "W",    # pycodestyle warnings
-    "B",    # flake8-bugbear (common pitfalls)
-]
-ignore = [
-    "E501",  # Line too long — handled by formatter
-    "E203",  # Whitespace before ':' — conflicts with Black-style formatting
-]
-
-[tool.ruff.lint.isort]
-known-first-party = ["{project_package}"]
-
-# ─────────────────────────────────────────────────────────────────
-# TY — Type Checking
-# ─────────────────────────────────────────────────────────────────
-[tool.ty.src]
-exclude = ["tests/"]
-
-# ─────────────────────────────────────────────────────────────────
-# COMMITIZEN — Conventional Commits & Versioning
-# ─────────────────────────────────────────────────────────────────
-[tool.commitizen]
-name = "cz_conventional_commits"
-version = "{0.1.0}"
-version_files = [
-    "pyproject.toml:^version",
-    "README.md:version-.*-blue\\.svg",
-]
-tag_format = "v$version"
-changelog_file = "CHANGELOG.md"
-update_changelog_on_bump = true
-major_version_zero = false
+require (
+    // production dependencies
+)
 ```
 
-### 16.3 Linting & Formatting: `ruff`
+### 16.3 Linting & Formatting: `golangci-lint`
 
 | Setting | Value | Rationale |
 |---------|-------|-----------|
-| `line-length` | `88` | Black-compatible default; fits side-by-side diffs |
-| `target-version` | `"py311"` | Match `requires-python` floor |
-| Rule sets | `C, E, F, W, B` | McCabe complexity + pycodestyle + pyflakes + bugbear |
-| `E501` ignored | Yes | Formatter handles wrapping; linter should not double-flag |
-| `E203` ignored | Yes | Conflicts with Black-style `:` spacing in slices |
-| `isort` | `known-first-party` configured | Enforces stdlib → third-party → first-party import order |
+| `linter` | `golangci-lint` | Industry standard aggregator |
+| `config` | `.golangci.yml` | Centralized config |
+| `presets` | `bugs, unused, complexity` | Catch common issues |
 
-**Zero-tolerance policy:** CI **shall** fail if `ruff check` reports any violation. No `# noqa` without an inline justification comment.
+**Zero-tolerance policy:** CI **shall** fail if `golangci-lint` reports any violation. No `//nolint` without an inline justification comment.
 
-### 16.4 Type Checking: `ty`
+### 16.4 Type Checking
 
-| Setting | Value |
-|---------|-------|
-| **Scope** | Source code only (`tests/` excluded) |
-| **Enforcement** | CI **shall** fail on type errors in source |
-| **Gradual typing** | Allowed in tests; forbidden in source. Source must be fully typed. |
+Go is statically typed. The compiler **shall** be the primary type checker. `golangci-lint` with `staticcheck` and `unused` shall provide additional safety.
 
 ### 16.5 Versioning: `commitizen`
 
@@ -983,16 +848,15 @@ major_version_zero = false
 | **Format** | [Conventional Commits](https://www.conventionalcommits.org/) — `<type>(<scope>): <description>` |
 | **Types** | `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`, `perf`, `build` |
 | **Tag format** | `v$version` (e.g., `v1.2.3`) |
-| **Version files** | `pyproject.toml:^version`, `README.md:version-.*-blue\\.svg` |
-| **Changelog** | Auto-generated in `CHANGELOG.md` on `cz bump` |
-| **Breaking changes** | Indicated by `!` after type (e.g., `feat!: remove legacy API`) or `BREAKING CHANGE:` in footer |
+| **Changelog** | Auto-generated in `CHANGELOG.md` on release |
+| **Breaking changes** | Indicated by `!` after type or `BREAKING CHANGE:` in footer |
 
 **Commit message examples:**
 
 ```
 feat(auth): add OAuth2 client-credentials handler
 fix(client): normalize single-item API responses to lists
-refactor(base): extract _SECRETS masking into mixin
+refactor(base): extract secrets masking into helper
 test(factory): add missing KeyError assertion for unknown provider
 docs: update architecture diagram in SPECIFICATIONS.md
 ```
@@ -1002,48 +866,32 @@ docs: update architecture diagram in SPECIFICATIONS.md
 ```makefile
 .ONESHELL:
 SHELL=/bin/zsh
-ENV_NAME={project-name}
 UNIT_TEST_COVERAGE_FAIL_UNDER = 80
 
-.PHONY: install sync format lint lint-fix type-check test test-unit clean pre-commit quality
+.PHONY: install build fmt lint test clean quality
 
-sync:
-	uv sync --all-extras
+install:
+	go mod download
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-install: sync
-	uv run pre-commit install
+build:
+	go build ./...
 
-format:
-	uv run ruff format {project_package}/ tests/
+fmt:
+	go fmt ./...
 
 lint:
-	uv run ruff check {project_package}/ tests/
-
-lint-fix:
-	uv run ruff check --fix {project_package}/ tests/
-
-type-check:
-	uv run ty check {project_package}/
-
-pre-commit:
-	uv run pre-commit run --all-files
+	golangci-lint run ./...
 
 test:
-	uv run pytest --cov={project_package} tests/ \
-		&& uv run coverage report --fail-under $(UNIT_TEST_COVERAGE_FAIL_UNDER) \
-		&& uv run coverage xml -o cov.xml
-
-test-unit:
-	uv run pytest tests/unit/ -v
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out
 
 clean:
-	find . -name '*.pyc' -delete
-	find . -name '__pycache__' -type d -delete
-	find . -type d -name '.ipynb_checkpoints' -delete
-	find . -type d -name '*.egg-info' -delete
-	rm -rf .coverage cov.xml htmlcov/ dist/ build/
+	go clean
+	rm -f coverage.out
 
-quality: format lint type-check
+quality: fmt lint test
 ```
 
 ### 16.7 Pre-commit Hooks
@@ -1053,17 +901,14 @@ The project **shall** use `pre-commit` with at least these hooks:
 ```yaml
 # .pre-commit-config.yaml
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.12
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.64.5
     hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-
-  - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.8.3
+      - id: golangci-lint
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.4
     hooks:
-      - id: commitizen
+      - id: prettier
 ```
 
 ### 16.8 CI/CD Quality Gates
@@ -1072,22 +917,20 @@ The CI pipeline **shall** enforce this sequence. **Any failure blocks merge.**
 
 ```mermaid
 flowchart LR
-    format["format<br/>(ruff)"]
-    lint["lint<br/>(ruff)"]
-    typecheck["type-check<br/>(ty)"]
-    test["test<br/>(pytest)"]
+    fmt["fmt<br/>(go fmt)"]
+    lint["lint<br/>(golangci-lint)"]
+    test["test<br/>(go test)"]
     coverage["coverage<br/>≥ 80%"]
 
-    format --> lint --> typecheck --> test --> coverage
+    fmt --> lint --> test --> coverage
 ```
 
 | Gate | Tool | Failure Behavior |
 |------|------|-----------------|
-| **Format** | `ruff format --check` | Block merge if files would change |
-| **Lint** | `ruff check` | Block merge on any violation |
-| **Type check** | `ty check` | Block merge on type errors in source |
-| **Test** | `pytest --cov` | Block merge on test failure |
-| **Coverage** | `coverage report --fail-under 80` | Block merge below threshold |
+| **Format** | `go fmt` | Block merge if files would change |
+| **Lint** | `golangci-lint` | Block merge on any violation |
+| **Test** | `go test` | Block merge on test failure |
+| **Coverage** | `go tool cover` | Block merge below threshold |
 
 ---
 
@@ -1110,43 +953,31 @@ source files.
 
 ### 17.2 Docstring Standard
 
-All docstrings **shall** follow [Google Python Style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings):
+All documentation **shall** follow standard Go Doc conventions:
 
-```python
-def deidentify_batch(self, texts: list[str]) -> list[DeidentifyResult]:
-    """De-identify a batch of texts in a single HTTP call.
-
-    Retries transient HTTP failures up to ``config.max_retries``
-    times with exponential backoff. On exhaustion the last exception
-    is re-raised — *loud fail*.
-
-    Args:
-        texts: List of raw text strings that may contain PII.
-
-    Returns:
-        A list of :class:`DeidentifyResult`, one per input text,
-        in the same order.
-
-    Raises:
-        ProviderError: If all retries are exhausted.
-        ValueError: If *texts* is empty.
-
-    Example::
-
-        client = PrivateAIClient(config)
-        results = client.deidentify_batch(["John Doe", "jane@acme.com"])
-        assert len(results) == 2
-    """
+```go
+// DeidentifyBatch de-identifies a batch of texts in a single HTTP call.
+//
+// It retries transient HTTP failures up to config.MaxRetries times
+// with exponential backoff. On exhaustion the last error is returned.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeouts.
+//   - texts: List of raw text strings that may contain PII.
+//
+// Returns:
+//   - A slice of DeidentifyResult, one per input text, in the same order.
+//   - An error if all retries are exhausted or input is invalid.
+func (c *Client) DeidentifyBatch(ctx context.Context, texts []string) ([]DeidentifyResult, error) {
 ```
 
 | Element | Requirement |
 |---------|-------------|
-| **Module docstring** | Every `.py` file. Describe purpose, pattern used, and usage example with `::` code block. |
-| **Class docstring** | Every public class. Describe responsibility and list `Attributes:` for dataclasses. |
-| **Method / function docstring** | Every public method and function. Include `Args:`, `Returns:`, `Raises:`. |
-| **`Example::` block** | Required for every public class and every non-trivial public function. Shows a minimal usage snippet. |
-| **Private methods** | One-line docstring acceptable. Multi-line only if the logic is non-obvious. |
-| **Constants** | Inline comment on the same line or a one-line docstring if module-level. |
+| **Package doc** | Every package **shall** have a `doc.go` or a package-level comment. |
+| **Exported symbols** | Every exported struct, interface, and function **shall** have a comment. |
+| **Signature** | Comments **shall** start with the name of the symbol. |
+| **Examples** | Use `_test.go` files with `ExampleSymbolName` functions for runnable examples. |
+| **Internal logic** | Use internal comments for complex logic; keep them concise. |
 
 ### 17.3 Documentation Generation Process
 
@@ -1154,85 +985,68 @@ When creating or modifying a source file, the AI **shall** follow this process:
 
 #### Step 1: Extract Signatures
 
-- Identify all public classes, methods, functions, and module-level constants.
-- Verify each has complete type annotations (parameters, return types, `ClassVar`, `field()`).
+- Identify all exported types, interfaces, and functions.
+- Verify each has explicit types and uses `context.Context` for I/O bound operations.
 
-#### Step 2: Write or Update Docstrings
+#### Step 2: Write or Update Comments
 
-- Write Google-style docstrings for every public symbol.
-- Include `Args:`, `Returns:`, `Raises:` sections where applicable.
-- Ensure parameter descriptions match the actual parameter names and types.
-- For dataclasses, use the `Attributes:` section to document fields.
+- Write Go-style comments for every exported symbol.
+- Ensure they start with the name of the symbol and follow a clear, descriptive style.
 
 #### Step 3: Add Usage Examples
 
-- Every public class **shall** have an `Example::` block in its docstring or the module docstring.
-- Examples **shall** be valid, runnable Python (suitable for `doctest` verification).
-- Derive examples from actual usage in the codebase, not hypothetical scenarios.
+- Create `Example` functions in `_test.go` files for core functionality.
+- Ensure examples are valid, runnable Go.
 
-```python
-"""Provider-agnostic abstractions for de-identification.
+```go
+/*
+Package base provides provider-agnostic abstractions for de-identification.
 
-Usage — consuming the abstraction::
-
-    from {project_package}.base import ClientFactory, Result
-
-    client = ClientFactory.create_from_dict(config_dict)
-    result: Result = client.process("My name is John Doe")
-
-Usage — implementing a new provider::
-
-    @ClientFactory.register("my_provider")
-    class MyClient(BaseClient):
-        def process(self, text: str) -> Result: ...
-"""
+Usage:
+    factory := base.NewFactory()
+    client, _ := factory.NewFromConfig(cfg)
+    result, _ := client.Process(ctx, "My name is John Doe")
+*/
+package base
 ```
 
-#### Step 4: Update `__all__` Exports
+#### Step 4: Update Exports
 
-- After adding or removing public symbols, update the module's `__all__` list.
-- Verify the `__init__.py` re-exports reflect the current public API.
+- After adding or removing exported symbols, ensure they are correctly named (PascalCase).
+- Verify the public API surface remains consistent.
 
 #### Step 5: Update README and API Surface Docs
 
-- When a new public class, function, or module is added:
+- When a new exported symbol is added:
     - Add it to the `README.md` usage section if it is part of the primary API.
-    - Add it to the `__init__.py` re-exports and `__all__` if it should be importable from the package root.
-- When a public symbol is removed or renamed:
+- When an exported symbol is removed or renamed:
     - Update all references in `README.md`.
-    - Add a backward-compatible re-export or `DeprecationWarning` per Section 14.
+    - Provide a migration path if necessary.
 
 #### Step 6: Validate Documentation Consistency
 
-- Verify docstring parameter names match function signatures exactly.
-- Verify `Raises:` sections list all exceptions that the function can raise.
-- Verify `Returns:` type in docstring matches the return type annotation.
-- Verify `Example::` blocks are syntactically valid Python.
+- Verify comments accurately describe parameters and return values.
+- Verify examples are syntactically valid Go and pass `go test`.
 
-### 17.4 Module Docstring Template
+### 17.4 Package Docstring Template
 
-Every source module **shall** begin with a docstring following this structure:
+Every package **shall** have a `doc.go` or a package-level comment following this structure:
 
-```python
-"""One-line summary of what this module provides.
-
-Extended description explaining the module's role in the architecture,
-which design pattern it implements, and how it fits into the dependency
-graph.
-
-Pattern: {Strategy | Factory + Registry | Chain of Responsibility | ...}
-
-Usage::
-
-    from {project_package}.{module} import {PrimaryClass}
-
-    instance = {PrimaryClass}(config)
-    result = instance.{primary_method}(input)
-
-See Also:
-    :mod:`{project_package}.base` — ABCs this module implements.
-    :mod:`{project_package}.auth` — Credential resolution used here.
-"""
+```go
+// Package {package} provides {one-line summary}.
+//
+// Extended description explaining the package's role in the architecture,
+// which design pattern it implements, and how it fits into the dependency
+// graph.
+//
+// Pattern: {Strategy | Factory + Registry | Chain of Responsibility | ...}
+//
+// Usage:
+//    import "{module-path}/{package}"
+//
+//    client := {package}.New(config)
+//    result, err := client.{Method}(ctx, input)
+package {package}
 ```
 
 ### 17.5 README Maintenance Rules
@@ -1249,12 +1063,10 @@ See Also:
 
 Before merging code, verify:
 
-- [ ] Every public class has a docstring with `Attributes:` (for dataclasses) or a responsibility statement.
-- [ ] Every public method has `Args:`, `Returns:`, `Raises:` sections.
-- [ ] Every public class or non-trivial function has an `Example::` block.
-- [ ] Module docstring states the design pattern used.
-- [ ] `__all__` is up to date in every modified module.
-- [ ] `__init__.py` re-exports are up to date.
+- [ ] Every public struct has a docstring with a responsibility statement.
+- [ ] Every public method has comments describing parameters and returns if non-obvious.
+- [ ] Every public struct or non-trivial function has an `Example` function in tests.
+- [ ] Package docstring states the design pattern used.
 - [ ] README reflects any new or changed public API.
 - [ ] No orphaned references to renamed or deleted symbols.
 
@@ -1271,8 +1083,8 @@ Every box must be checked before the AI starts implementation.
 - [ ] **Section 1** — Introduction written; glossary covers all domain terms.
 - [ ] **Section 2** — Every goal is testable; non-goals prevent scope creep.
 - [ ] **Section 3** — Every dependency listed with version constraint and purpose.
-- [ ] **Section 4** — Design patterns mapped to modules; dependency graph has no cycles.
-- [ ] **Section 5** — Every module has SPEC-IDs; every public class has field + method tables.
+- [ ] **Section 4** — Design patterns mapped to packages; dependency graph has no cycles.
+- [ ] **Section 5** — Every package has SPEC-IDs; every exported symbol has field + method tables.
 - [ ] **Section 6** — Config schema complete; validation rules cover all required fields.
 - [ ] **Section 7** — Data flow diagram shows every stage; schemas defined for input/output.
 - [ ] **Section 8** — Every output artifact specified (columns, rows, constraints).
@@ -1284,7 +1096,7 @@ Every box must be checked before the AI starts implementation.
 - [ ] **Section 14** — Public API surface defined; deprecation warnings specified.
 - [ ] **Section 15** — Test requirements table has entry for every SPEC-ID.
 - [ ] **Section 16** — All tool configs verified; `make quality` passes locally.
-- [ ] **Section 17** — Docstring standard defined; README maintenance rules documented.
+- [ ] **Section 17** — Go Doc standard followed; README maintenance rules documented.
 
 ---
 
@@ -1300,13 +1112,13 @@ This follows the Requirements → Design → Tasks pattern.
 
 | Task | SPEC-IDs | Description | Dependencies |
 |------|----------|-------------|--------------|
-| T-1 | — | Scaffold project: `pyproject.toml`, `Makefile`, directory structure | None |
-| T-2 | SPEC-{MOD}-001, 002 | Implement `base.py`: value objects, ABCs, Factory | T-1 |
-| T-3 | SPEC-{MOD}-001..005 | Implement `auth.py`: handler chain | T-2 |
-| T-4 | SPEC-{MOD}-001..006 | Implement `client.py`: provider integration | T-2, T-3 |
-| T-5 | SPEC-{MOD}-001..010 | Implement `pipelines/process.py`: pipeline | T-2, T-4 |
+| T-1 | — | Scaffold project: `go.mod`, `Makefile`, directory structure | None |
+| T-2 | SPEC-{PKG}-001, 002 | Implement `base.go`: value objects, interfaces, Factory | T-1 |
+| T-3 | SPEC-{PKG}-001..005 | Implement `auth.go`: handler chain | T-2 |
+| T-4 | SPEC-{PKG}-001..006 | Implement `client.go`: provider integration | T-2, T-3 |
+| T-5 | SPEC-{PKG}-001..010 | Implement `pipelines/process.go`: pipeline | T-2, T-4 |
 | T-6 | Section 15 | Write all unit tests | T-2..T-5 |
-| T-7 | Section 16 | Verify `make quality` passes; fix all lint/type errors | T-6 |
+| T-7 | Section 16 | Verify `make quality` passes; fix all lint errors | T-6 |
 
 ---
 
@@ -1325,35 +1137,33 @@ The following rules **shall** be placed in a `STEERING.md` (or equivalent AI rul
 
 ## Always
 
-- Use `from __future__ import annotations` as the first import.
-- Use Google-style docstrings on every public symbol.
-- Use PEP 604 unions (`X | Y`) — never `Optional[X]` or `Union[X, Y]`.
-- Declare `__all__` in every module.
-- Use `logging.getLogger(__name__)` — never `print()`.
-- Use `dataclass(frozen=True)` for configuration objects.
-- Use `field(default_factory=...)` for mutable defaults.
-- Separate code sections with `# --- Section Name ---` block comments.
-- Write test names as: `test_{what}_when_{condition}_then_{expected}`.
+- Use explicit error handling (`if err != nil`).
+- Use Go Doc comments on every exported symbol.
+- Use PascalCase for exported names and camelCase for private names.
+- Use `context.Context` for all I/O and long-running operations.
+- Use `slog` for structured logging.
+- Use interfaces to decouple packages and facilitate testing.
+- Write test names as: `Test{What}_{Condition}_{ExpectedOutcome}`.
 
 ## Never
 
-- Never use bare `except:` or swallow exceptions silently.
-- Never use `from x import *`.
-- Never use mutable default arguments.
+- Never ignore errors (`_ = ...`) without a documented reason.
+- Never use dot imports (`import . "package"`).
+- Never use global mutable state (package-level variables).
 - Never hard-code secrets, URLs, or file paths.
-- Never use `time.sleep()` — use `tenacity` for retries.
-- Never use `# type: ignore` without a bracketed code and justification.
+- Never use `time.Sleep()` without a way to cancel it (use `Context` or `select`).
+- Never use `//nolint` without a specific linter and justification.
 - Never leave dead code — delete it.
-- Never use `print()` for debugging — use `logger.debug()`.
+- Never use `fmt.Print*` for logging — use `slog`.
 - Never commit `.env` files or secrets to version control.
 
 ## Architecture
 
 - Dependency flow is strictly one-directional. No circular imports.
-- Use `TYPE_CHECKING` blocks for imports needed only by type hints.
-- Every ABC lives in `base.py`. Concrete implementations in separate modules.
-- Registrations happen via decorators at class definition time.
-- Config objects are frozen dataclasses. Runtime state goes in client instances.
+- Use internal packages for private implementation details.
+- Every interface lives where it is used (consumer-defined interfaces) or in a base package if shared.
+- Registrations happen via `Register` functions, typically in `init()`.
+- Config objects are structs. Runtime state goes in service/client instances.
 ```
 
 ---
